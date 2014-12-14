@@ -9,7 +9,10 @@ DrawingBoard::DrawingBoard()
 
 void DrawingBoard::setSize(unsigned width, unsigned height)
 {
-    texture.create(width, height);
+    // Resize the texture if the size is different
+    auto size = texture.getSize();
+    if (size.x != width || size.y != height)
+        texture.create(width, height);
 }
 
 void DrawingBoard::clear(sf::Color color)

@@ -3,16 +3,41 @@
 
 #include "netdraw.h"
 #include "colorcode.h"
+#include "packets.h"
+#include <iostream>
+#include <functional>
 
 NetDraw::NetDraw():
-    config("config.txt", cfg::File::AllFlags)
+    config("client.cfg")
 {
     setupColors();
-    myId = tools.addTool(Tool());
-    board.setSize(1024, 768);
-    window.create(sf::VideoMode(1024, 768), "NetDraw v0.1 Alpha");
+    resolution = sf::Vector2u(1024, 768);
+    myToolChanged = false;
+    receivedId = false;
+    receivedBoard = false;
+    receivedToolUpdate = false;
+    myId = 0;
+
+    // Setup network client
+    using namespace std::placeholders;
+    client.registerCallback(Packets::ToolUpdate, std::bind(&NetDraw::handleToolUpdatePacket, this, _1));
+    client.registerCallback(Packets::BoardUpdate, std::bind(&NetDraw::handleBoardUpdatePacket, this, _1));
+    client.registerCallback(Packets::ToolId, std::bind(&NetDraw::handleToolIdPacket, this, _1));
+
+    // Connect to server
+    if (client.connect(net::Address(config("server"))))
+        getSetupPackets();
+    else
+        std::cerr << "Error connecting to " << config("server") << "\n";
+
+    // Setup board and window
+    board.setSize(resolution.x, resolution.y);
+    board.clear();
+    window.create(sf::VideoMode(resolution.x, resolution.y), "NetDraw v0.1 Alpha");
     showCursor = false;
     window.setMouseCursorVisible(showCursor);
+    window.setVerticalSyncEnabled(true);
+    //window.setFramerateLimit(20);
 }
 
 void NetDraw::start()
@@ -75,29 +100,42 @@ void NetDraw::handleInput()
     else
         tools[myId].state = Tool::Up;
 
-    // Draw!
+    // Set tool state to changed
     if (mousePos != oldMousePos || oldState != tools[myId].state)
     {
-        if (tools[myId].state == Tool::Down)
-            board.drawLine(mousePos, mousePos, tools[myId].size, tools[myId].color);
-        else if (tools[myId].state == Tool::Erase)
-            board.drawLine(mousePos, mousePos, tools[myId].size, sf::Color::Black);
+        tools[myId].changed = true;
+        myToolChanged = true;
     }
-
     oldMousePos = mousePos;
+
+    // Draw!
+    for (auto& tool: tools)
+    {
+        if (tool.second.state == Tool::Down)
+            board.drawLine(tool.second.pos, tool.second.pos, tool.second.size, tool.second.color);
+        else if (tool.second.state == Tool::Erase)
+            board.drawLine(tool.second.pos, tool.second.pos, tool.second.size, sf::Color::Black);
+    }
 }
 
 void NetDraw::update()
 {
     tools[myId].updateShape();
-    network.update();
+
+    // Send updates to server
+    if (myToolChanged)
+        sendToolUpdate();
+    myToolChanged = false;
+
+    client.receive();
 }
 
 void NetDraw::draw()
 {
     window.clear();
     window.draw(board);
-    window.draw(tools);
+    for (auto& tool: tools)
+        window.draw(tool.second.shape);
     window.display();
 }
 
@@ -146,4 +184,58 @@ void NetDraw::setupColors()
         Tool::addColor(colorCode.toColor());
         colorOption = colorCode.toString();
     }
+}
+
+void NetDraw::getSetupPackets()
+{
+    std::cout << "Waiting for setup packets...\n";
+    while (!receivedId || !receivedBoard)
+    {
+        client.receive();
+        sf::sleep(sf::milliseconds(50));
+    }
+    std::cout << "Received all setup packets.\n";
+}
+
+void NetDraw::sendToolUpdate()
+{
+    sf::Packet packet;
+    packet << sf::Int32(Packets::ToolUpdate) << sf::Int32(myId) << tools[myId];
+    client.send(packet);
+}
+
+void NetDraw::handleToolUpdatePacket(sf::Packet& packet)
+{
+    sf::Int32 id;
+    while (packet >> id)
+    {
+        if (!receivedToolUpdate || id != myId)
+        {
+            packet >> tools[id];
+            tools[id].changed = true;
+            tools[id].updateShape();
+            if (id == myId)
+            {
+                std::cout << "Received tool!\n";
+                receivedToolUpdate = true;
+            }
+        }
+    }
+}
+
+void NetDraw::handleBoardUpdatePacket(sf::Packet& packet)
+{
+    packet >> resolution.x >> resolution.y;
+    // TODO: Also add the drawing board
+    receivedBoard = true;
+    std::cout << "Resolution from server: " << resolution.x << " x " << resolution.y << "\n";
+}
+
+void NetDraw::handleToolIdPacket(sf::Packet& packet)
+{
+    sf::Int32 id;
+    packet >> id;
+    myId = id;
+    receivedId = true;
+    std::cout << "Your tool ID: " << myId << "\n";
 }

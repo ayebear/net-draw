@@ -1,5 +1,5 @@
-// See the file COPYRIGHT.txt for authors and copyright information.
-// See the file LICENSE.txt for copying conditions.
+// Copyright (C) 2014 Eric Hebert (ayebear)
+// This code is licensed under GPLv3, see LICENSE.txt for details.
 
 #include "colorcode.h"
 #include <sstream>
@@ -73,7 +73,7 @@ void ColorCode::colorToStr(const sf::Color& col, std::string& str) const
 {
     std::ostringstream ss;
     ss << std::hex << std::uppercase << std::setfill('0');
-    ss << '#' << std::setw(2) << col.r << col.g << col.b << col.a;
+    ss << '#' << std::setw(2) << (int)col.r << (int)col.g << (int)col.b << (int)col.a;
     str = ss.str();
 }
 
