@@ -44,4 +44,11 @@ struct Tool
 sf::Packet& operator<<(sf::Packet& packet, const Tool& tool);
 sf::Packet& operator>>(sf::Packet& packet, Tool& tool);
 
+// Packet support for colors
+sf::Packet& operator<<(sf::Packet& packet, const sf::Color& color);
+sf::Packet& operator>>(sf::Packet& packet, sf::Color& color);
+
+// A map of client IDs to paint tools
+using PaintToolMap = std::map<int, Tool>;
+
 #endif

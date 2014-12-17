@@ -27,6 +27,7 @@ class NetDraw
         void draw();
 
         // Miscellaneous functions
+        void handleKeyPressed(sf::Keyboard::Key keyCode);
         void handleMouseWheelMoved(int delta);
         void changeColor(int delta);
         void changeAlpha(int delta);
@@ -34,24 +35,27 @@ class NetDraw
         void setupColors();
         void getSetupPackets();
         void sendToolUpdate();
+        void clearBoard();
 
         // Networking
         void handleToolUpdatePacket(sf::Packet& packet);
-        void handleBoardUpdatePacket(sf::Packet& packet);
         void handleToolIdPacket(sf::Packet& packet);
+        void handleDeleteToolPacket(sf::Packet& packet);
+        void handleBoardUpdatePacket(sf::Packet& packet);
+        void handleClearBoardPacket(sf::Packet& packet);
 
         // Main objects
         sf::RenderWindow window;
         DrawingBoard board;
-        std::map<int, Tool> tools;
+        PaintToolMap tools;
         net::Client client;
         cfg::File config;
 
         // Other objects
         float dt;
         int myId;
+        bool windowFocus;
         bool showCursor;
-        bool myToolChanged; // TODO: Delete this
         bool receivedId;
         bool receivedBoard;
         bool receivedToolUpdate;

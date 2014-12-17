@@ -1,3 +1,6 @@
+// Copyright (C) 2014 Eric Hebert (ayebear)
+// This code is licensed under GPLv3, see LICENSE.txt for details.
+
 #include "netdrawserver.h"
 #include "packets.h"
 #include <iostream>
@@ -24,23 +27,23 @@ NetDrawServer::~NetDrawServer()
 void NetDrawServer::start()
 {
     server.start();
-    std::cout << "Server is running...\n";
+    std::cout << "Server is running on port " << config("port").toInt() << "...\n";
     server.join();
 }
 
 void NetDrawServer::handleClientConnected(int id)
 {
     std::cout << "Client " << id << " connected.\n";
-    tools[id].updateShape();
 
     // Send tool ID
     sf::Packet packet;
     packet << sf::Int32(Packets::ToolId) << sf::Int32(id);
     server.send(packet, id);
 
-    // Send board information
+    // Send board information and texture
     packet.clear();
-    packet << sf::Int32(Packets::BoardUpdate) << config("width").to<sf::Uint32>() << config("height").to<sf::Uint32>();
+    packet << sf::Int32(Packets::BoardUpdate);
+    board.writeToPacket(packet);
     server.send(packet, id);
 }
 
@@ -48,20 +51,56 @@ void NetDrawServer::handleClientDisconnected(int id)
 {
     std::cout << "Client " << id << " disconnected.\n";
     tools.erase(id);
+
+    // Let clients know that this client left
+    sf::Packet packet;
+    packet << sf::Int32(Packets::DeleteTool) << sf::Int32(id);
+    server.sendToAll(packet, id);
 }
 
 void NetDrawServer::handlePacket(sf::Packet& packet, int id)
 {
-    //std::cout << "Client " << id << " sent a packet.\n";
-    sf::Int32 type, clientId;
-    if (packet >> type >> clientId && type == Packets::ToolUpdate && clientId == id)
+    sf::Int32 type;
+    if (packet >> type)
+    {
+        switch (type)
+        {
+            case Packets::ToolUpdate:
+                handleToolUpdate(packet, id);
+                break;
+            case Packets::ClearBoard:
+                handleClearBoard(id);
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+void NetDrawServer::handleToolUpdate(sf::Packet& packet, int id)
+{
+    sf::Int32 clientId;
+    if (packet >> clientId && clientId == id)
     {
         // Update the tool
         packet >> tools[id];
 
+        // Draw the change
+        board.drawTools(tools);
+
         // Send a packet to everyone with the update
         sf::Packet updatePacket;
-        updatePacket << type << clientId << tools[id];
-        server.send(updatePacket);
+        updatePacket << sf::Int32(Packets::ToolUpdate) << clientId << tools[id];
+        server.sendToAll(updatePacket, id);
     }
+}
+
+void NetDrawServer::handleClearBoard(int id)
+{
+    board.clear();
+
+    // Let all of the clients know to clear their boards
+    sf::Packet packet;
+    packet << sf::Int32(Packets::ClearBoard);
+    server.sendToAll(packet, id);
 }

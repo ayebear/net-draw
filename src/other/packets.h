@@ -8,8 +8,10 @@ namespace Packets
     {
         Unknown = 0,
         ToolUpdate,
-        BoardUpdate,
         ToolId,
+        DeleteTool,
+        BoardUpdate,
+        ClearBoard,
         NumTypes
     };
 }
@@ -18,14 +20,18 @@ namespace Packets
 ToolUpdate:
     Client/tool ID, Tool fields, ...
     There can be more than 1 tool update per packet.
-    This is the only packet type the client is allowed to send out.
-        Also, clients can only update their own tool!
+    Clients are allowed to send this
+ToolId:
+    Server tells a client what its tool ID is
+DeleteTool:
+    Server tells all clients that a client left
 BoardUpdate:
+    Has the resolution of the board
     Contains the entire board texture
     Only sent initially from the server
-        Or maybe only once in a while
-ToolId:
-    Server tells a client what its tool is
+ClearBoard:
+    Clears the board with black
+    Clients are allowed to send this
 */
 
 #endif

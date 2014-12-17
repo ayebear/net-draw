@@ -1,3 +1,6 @@
+// Copyright (C) 2014 Eric Hebert (ayebear)
+// This code is licensed under GPLv3, see LICENSE.txt for details.
+
 #ifndef NETDRAWSERVER_H
 #define NETDRAWSERVER_H
 
@@ -19,10 +22,13 @@ class NetDrawServer
         void handleClientDisconnected(int id);
         void handlePacket(sf::Packet& packet, int id);
 
+        void handleToolUpdate(sf::Packet& packet, int id);
+        void handleClearBoard(int id);
+
         cfg::File config;
         net::TcpServer server;
         DrawingBoard board;
-        std::map<int, Tool> tools;
+        PaintToolMap tools;
 };
 
 #endif

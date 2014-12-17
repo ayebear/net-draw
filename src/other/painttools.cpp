@@ -50,6 +50,7 @@ void Tool::changeColor(int delta)
         auto alpha = color.a;
         color = colors[colorId];
         color.a = alpha;
+        changed = true;
     }
 }
 
@@ -60,21 +61,24 @@ void Tool::addColor(const sf::Color& color)
 
 sf::Packet& operator<<(sf::Packet& packet, const Tool& tool)
 {
-    //std::string colorStr = ColorCode(tool.color).toString();
-    //std::cout << colorStr << "\n";
-    //std::cout << (int)tool.color.r << ", " << (int)tool.color.g << ", " << (int)tool.color.b << ", " << (int)tool.color.a << "\n";
-    return packet << tool.pos.x << tool.pos.y << tool.color.r
-        << tool.color.g << tool.color.b << tool.color.a
+    return packet << tool.pos.x << tool.pos.y << tool.color
         << sf::Uint32(tool.size) << sf::Int32(tool.state);
 }
 
 sf::Packet& operator>>(sf::Packet& packet, Tool& tool)
 {
-    //std::string colorStr;
-    packet >> tool.pos.x >> tool.pos.y >> tool.color.r >> tool.color.g
-        >> tool.color.b >> tool.color.a >> tool.size >> tool.state;
-    //std::cout << colorStr << "\n";
-    //tool.color = ColorCode(colorStr).toColor();
+    packet >> tool.pos.x >> tool.pos.y >> tool.color >> tool.size >> tool.state;
+    tool.changed = true;
     tool.updateShape();
     return packet;
+}
+
+sf::Packet& operator<<(sf::Packet& packet, const sf::Color& color)
+{
+    return packet << color.r << color.g << color.b << color.a;
+}
+
+sf::Packet& operator>>(sf::Packet& packet, sf::Color& color)
+{
+    return packet >> color.r >> color.g >> color.b >> color.a;
 }

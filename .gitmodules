@@ -1,6 +1,8 @@
 [submodule "src/netlib"]
 	path = src/netlib
 	url = https://github.com/ayebear/netlib.git
+	branch = master
 [submodule "src/configfile"]
 	path = src/configfile
 	url = https://github.com/ayebear/ConfigFile.git
+	branch = master

@@ -12,7 +12,7 @@ NetDraw::NetDraw():
 {
     setupColors();
     resolution = sf::Vector2u(1024, 768);
-    myToolChanged = false;
+    windowFocus = true;
     receivedId = false;
     receivedBoard = false;
     receivedToolUpdate = false;
@@ -21,19 +21,19 @@ NetDraw::NetDraw():
     // Setup network client
     using namespace std::placeholders;
     client.registerCallback(Packets::ToolUpdate, std::bind(&NetDraw::handleToolUpdatePacket, this, _1));
-    client.registerCallback(Packets::BoardUpdate, std::bind(&NetDraw::handleBoardUpdatePacket, this, _1));
     client.registerCallback(Packets::ToolId, std::bind(&NetDraw::handleToolIdPacket, this, _1));
+    client.registerCallback(Packets::DeleteTool, std::bind(&NetDraw::handleDeleteToolPacket, this, _1));
+    client.registerCallback(Packets::BoardUpdate, std::bind(&NetDraw::handleBoardUpdatePacket, this, _1));
+    client.registerCallback(Packets::ClearBoard, std::bind(&NetDraw::handleClearBoardPacket, this, _1));
 
-    // Connect to server
+    // Connect to server and setup board
     if (client.connect(net::Address(config("server"))))
         getSetupPackets();
     else
         std::cerr << "Error connecting to " << config("server") << "\n";
 
-    // Setup board and window
-    board.setSize(resolution.x, resolution.y);
-    board.clear();
-    window.create(sf::VideoMode(resolution.x, resolution.y), "NetDraw v0.1 Alpha");
+    // Setup window
+    window.create(sf::VideoMode(resolution.x, resolution.y), "NetDraw v0.2 Beta");
     showCursor = false;
     window.setMouseCursorVisible(showCursor);
     window.setVerticalSyncEnabled(true);
@@ -58,27 +58,30 @@ void NetDraw::handleEvents()
     sf::Event event;
     while (window.pollEvent(event))
     {
-        if (event.type == sf::Event::Closed)
-            window.close();
-        else if (event.type == sf::Event::MouseWheelMoved)
-            handleMouseWheelMoved(event.mouseWheel.delta);
-        else if (event.type == sf::Event::KeyPressed)
+        switch (event.type)
         {
-            switch (event.key.code)
-            {
-                case sf::Keyboard::C:
-                    board.clear(); // TODO: Update this over network
-                    break;
-                case sf::Keyboard::S:
-                    showCursor = !showCursor;
-                    window.setMouseCursorVisible(showCursor);
-                    break;
-                case sf::Keyboard::N:
-                    changeColor(1);
-                    break;
-                default:
-                    break;
-            }
+            case sf::Event::Closed:
+                window.close();
+                break;
+
+            case sf::Event::MouseWheelMoved:
+                handleMouseWheelMoved(event.mouseWheel.delta);
+                break;
+
+            case sf::Event::KeyPressed:
+                handleKeyPressed(event.key.code);
+                break;
+
+            case sf::Event::LostFocus:
+                windowFocus = false;
+                break;
+
+            case sf::Event::GainedFocus:
+                windowFocus = true;
+                break;
+
+            default:
+                break;
         }
     }
 }
@@ -90,32 +93,22 @@ void NetDraw::handleInput()
     bool mouseRightDown = sf::Mouse::isButtonPressed(sf::Mouse::Right);
 
     // Update your tool
-    tools[myId].pos = mousePos;
+    auto& myTool = tools[myId];
+    myTool.pos = mousePos;
 
-    auto oldState = tools[myId].state;
-    if (mouseLeftDown)
-        tools[myId].state = Tool::Down;
-    else if (mouseRightDown)
-        tools[myId].state = Tool::Erase;
+    // Set the tool's state
+    auto oldState = myTool.state;
+    if (mouseLeftDown && windowFocus)
+        myTool.state = Tool::Down;
+    else if (mouseRightDown && windowFocus)
+        myTool.state = Tool::Erase;
     else
-        tools[myId].state = Tool::Up;
+        myTool.state = Tool::Up;
 
     // Set tool state to changed
-    if (mousePos != oldMousePos || oldState != tools[myId].state)
-    {
-        tools[myId].changed = true;
-        myToolChanged = true;
-    }
+    if (mousePos != oldMousePos || oldState != myTool.state)
+        myTool.changed = true;
     oldMousePos = mousePos;
-
-    // Draw!
-    for (auto& tool: tools)
-    {
-        if (tool.second.state == Tool::Down)
-            board.drawLine(tool.second.pos, tool.second.pos, tool.second.size, tool.second.color);
-        else if (tool.second.state == Tool::Erase)
-            board.drawLine(tool.second.pos, tool.second.pos, tool.second.size, sf::Color::Black);
-    }
 }
 
 void NetDraw::update()
@@ -123,9 +116,11 @@ void NetDraw::update()
     tools[myId].updateShape();
 
     // Send updates to server
-    if (myToolChanged)
+    if (tools[myId].changed)
         sendToolUpdate();
-    myToolChanged = false;
+
+    // Have the tools draw on the screen
+    board.drawTools(tools);
 
     client.receive();
 }
@@ -137,6 +132,25 @@ void NetDraw::draw()
     for (auto& tool: tools)
         window.draw(tool.second.shape);
     window.display();
+}
+
+void NetDraw::handleKeyPressed(sf::Keyboard::Key keyCode)
+{
+    switch (keyCode)
+    {
+        case sf::Keyboard::C:
+            clearBoard();
+            break;
+        case sf::Keyboard::S:
+            showCursor = !showCursor;
+            window.setMouseCursorVisible(showCursor);
+            break;
+        case sf::Keyboard::N:
+            changeColor(1);
+            break;
+        default:
+            break;
+    }
 }
 
 void NetDraw::handleMouseWheelMoved(int delta)
@@ -167,6 +181,7 @@ void NetDraw::changeAlpha(int delta)
     if (alpha > 255)
         alpha = 255;
     tools[myId].color.a = alpha;
+    tools[myId].changed = true;
 }
 
 void NetDraw::changeSize(int delta)
@@ -174,6 +189,7 @@ void NetDraw::changeSize(int delta)
     tools[myId].size += delta * ceil(0.1 * tools[myId].size);
     if (tools[myId].size < 1)
         tools[myId].size = 1;
+    tools[myId].changed = true;
 }
 
 void NetDraw::setupColors()
@@ -204,6 +220,14 @@ void NetDraw::sendToolUpdate()
     client.send(packet);
 }
 
+void NetDraw::clearBoard()
+{
+    board.clear();
+    sf::Packet packet;
+    packet << sf::Int32(Packets::ClearBoard);
+    client.send(packet);
+}
+
 void NetDraw::handleToolUpdatePacket(sf::Packet& packet)
 {
     sf::Int32 id;
@@ -212,8 +236,6 @@ void NetDraw::handleToolUpdatePacket(sf::Packet& packet)
         if (!receivedToolUpdate || id != myId)
         {
             packet >> tools[id];
-            tools[id].changed = true;
-            tools[id].updateShape();
             if (id == myId)
             {
                 std::cout << "Received tool!\n";
@@ -223,14 +245,6 @@ void NetDraw::handleToolUpdatePacket(sf::Packet& packet)
     }
 }
 
-void NetDraw::handleBoardUpdatePacket(sf::Packet& packet)
-{
-    packet >> resolution.x >> resolution.y;
-    // TODO: Also add the drawing board
-    receivedBoard = true;
-    std::cout << "Resolution from server: " << resolution.x << " x " << resolution.y << "\n";
-}
-
 void NetDraw::handleToolIdPacket(sf::Packet& packet)
 {
     sf::Int32 id;
@@ -238,4 +252,25 @@ void NetDraw::handleToolIdPacket(sf::Packet& packet)
     myId = id;
     receivedId = true;
     std::cout << "Your tool ID: " << myId << "\n";
+}
+
+void NetDraw::handleDeleteToolPacket(sf::Packet& packet)
+{
+    sf::Int32 id;
+    packet >> id;
+    tools.erase(id);
+    std::cout << "Client " << id << " has left.\n";
+}
+
+void NetDraw::handleBoardUpdatePacket(sf::Packet& packet)
+{
+    board.readFromPacket(packet);
+    resolution = board.getSize();
+    receivedBoard = true;
+    std::cout << "Resolution from server: " << resolution.x << " x " << resolution.y << "\n";
+}
+
+void NetDraw::handleClearBoardPacket(sf::Packet& packet)
+{
+    board.clear();
 }
