@@ -7,7 +7,7 @@
 #include "tcpserver.h"
 #include "configfile.h"
 #include "drawingboard.h"
-#include "painttools.h"
+#include "painttool.h"
 #include <map>
 
 class NetDrawServer

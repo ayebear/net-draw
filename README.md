@@ -35,3 +35,4 @@ This is the graphical program that you can use to draw on. It will connect to th
 
 * Colors: the list of available colors to choose from
 * Server: address + port of server to connect to
+* Username: an optional username to show next to your cursor

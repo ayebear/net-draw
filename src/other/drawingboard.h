@@ -5,7 +5,7 @@
 #define DRAWINGBOARD_H
 
 #include <SFML/Graphics.hpp>
-#include "painttools.h"
+#include "painttool.h"
 
 /*
 A canvas that can be "drawn" onto with various tools.

@@ -7,6 +7,7 @@
 DrawingBoard::DrawingBoard():
     textureSize(0, 0)
 {
+    shape.setPointCount(50);
 }
 
 void DrawingBoard::setSize(unsigned width, unsigned height)
@@ -53,11 +54,11 @@ void DrawingBoard::drawTools(PaintToolMap& tools)
 {
     for (auto& tool: tools)
     {
-        if (tool.second.changed && tool.second.state != Tool::Up)
+        if (tool.second.changed && tool.second.state != PaintTool::Up)
         {
             // Draw or erase
             sf::Color toolColor = tool.second.color;
-            if (tool.second.state == Tool::Erase)
+            if (tool.second.state == PaintTool::Erase)
                 toolColor = sf::Color::Black;
             drawLine(tool.second.pos, tool.second.pos, tool.second.size, toolColor);
         }

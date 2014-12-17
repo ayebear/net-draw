@@ -6,7 +6,7 @@
 
 #include <SFML/Graphics.hpp>
 #include "drawingboard.h"
-#include "painttools.h"
+#include "painttool.h"
 #include "configfile.h"
 #include "client.h"
 

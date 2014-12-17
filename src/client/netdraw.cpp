@@ -11,6 +11,7 @@ NetDraw::NetDraw():
     config("client.cfg")
 {
     setupColors();
+    PaintTool::loadFont("data/fonts/Ubuntu-B.ttf");
     resolution = sf::Vector2u(1024, 768);
     windowFocus = true;
     receivedId = false;
@@ -28,16 +29,18 @@ NetDraw::NetDraw():
 
     // Connect to server and setup board
     if (client.connect(net::Address(config("server"))))
+    {
         getSetupPackets();
+        tools[myId].setUsername(config("username"));
+    }
     else
         std::cerr << "Error connecting to " << config("server") << "\n";
 
     // Setup window
-    window.create(sf::VideoMode(resolution.x, resolution.y), "NetDraw v0.2 Beta");
+    window.create(sf::VideoMode(resolution.x, resolution.y), "NetDraw v0.3 Beta", sf::Style::Close);
     showCursor = false;
     window.setMouseCursorVisible(showCursor);
     window.setVerticalSyncEnabled(true);
-    //window.setFramerateLimit(20);
 }
 
 void NetDraw::start()
@@ -99,11 +102,11 @@ void NetDraw::handleInput()
     // Set the tool's state
     auto oldState = myTool.state;
     if (mouseLeftDown && windowFocus)
-        myTool.state = Tool::Down;
+        myTool.state = PaintTool::Down;
     else if (mouseRightDown && windowFocus)
-        myTool.state = Tool::Erase;
+        myTool.state = PaintTool::Erase;
     else
-        myTool.state = Tool::Up;
+        myTool.state = PaintTool::Up;
 
     // Set tool state to changed
     if (mousePos != oldMousePos || oldState != myTool.state)
@@ -130,7 +133,7 @@ void NetDraw::draw()
     window.clear();
     window.draw(board);
     for (auto& tool: tools)
-        window.draw(tool.second.shape);
+        window.draw(tool.second);
     window.display();
 }
 
@@ -197,7 +200,7 @@ void NetDraw::setupColors()
     for (auto& colorOption: config("colors"))
     {
         ColorCode colorCode(colorOption.toString());
-        Tool::addColor(colorCode.toColor());
+        PaintTool::addColor(colorCode.toColor());
         colorOption = colorCode.toString();
     }
 }
@@ -257,9 +260,12 @@ void NetDraw::handleToolIdPacket(sf::Packet& packet)
 void NetDraw::handleDeleteToolPacket(sf::Packet& packet)
 {
     sf::Int32 id;
-    packet >> id;
-    tools.erase(id);
-    std::cout << "Client " << id << " has left.\n";
+    if (packet >> id)
+    {
+        auto username = tools[id].username;
+        tools.erase(id);
+        std::cout << username << " has left.\n";
+    }
 }
 
 void NetDraw::handleBoardUpdatePacket(sf::Packet& packet)
